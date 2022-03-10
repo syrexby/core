@@ -1519,4 +1519,39 @@ class DB
             throw new TelegramException($e->getMessage());
         }
     }
+
+    /**
+     * @param int $product_id
+     * @param User $user
+     * @return bool
+     * @throws TelegramException
+     */
+    public static function addToCart(int $product_id, User $user): bool
+    {
+        if (!self::isDbConnected()) {
+            return false;
+        }
+
+        try {
+            $sth = self::$pdo->prepare('
+                INSERT INTO `' . TB_CART . '`
+                (`user_id`, `json_data`)
+                VALUES
+                (:user_id, :json_data)
+                ON DUPLICATE KEY UPDATE
+                    `json_data`       = VALUES(`json_data`),
+            ');
+
+
+            $json_data = json_encode([$product_id => 1]);
+            $sth->bindValue(':user_id', $user->getId());
+            $sth->bindValue(':json_data', $json_data);
+
+            $status = $sth->execute();
+        } catch (PDOException $e) {
+            throw new TelegramException($e->getMessage());
+        }
+
+        return $status;
+    }
 }
