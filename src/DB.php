@@ -1523,7 +1523,7 @@ class DB
     /**
      * @param int $product_id
      * @param User $user
-     * @return bool
+     * @return bool|array
      * @throws TelegramException
      */
     public static function addToCart(int $product_id, User $user): bool
@@ -1533,25 +1533,131 @@ class DB
         }
 
         try {
+            $sql = '
+                SELECT *
+                FROM `' . TB_CART . '`
+                WHERE `user_id` = :user_id
+            ';
+
+            $sth = self::$pdo->prepare($sql);
+
+            $sth->bindValue(':user_id', $user->getId(), PDO::PARAM_INT);
+
+            $sth->execute();
+
+            if ($cart = $sth->fetch(PDO::FETCH_ASSOC)) {
+                $json_data = json_decode($cart['json_data'], true);
+                $json_data[$product_id] = array_key_exists($product_id, $json_data) ? ++$json_data[$product_id] : $json_data[$product_id] = 1;
+            } else {
+                $json_data = [$product_id => 1];
+            }
+            $json_data = json_encode($json_data);
+
             $sth = self::$pdo->prepare('
                 INSERT INTO `' . TB_CART . '`
                 (`user_id`, `json_data`)
                 VALUES
                 (:user_id, :json_data)
                 ON DUPLICATE KEY UPDATE
-                    `json_data`       = VALUES(`json_data`),
+                    `json_data` = VALUES(`json_data`)
             ');
 
-
-            $json_data = json_encode([$product_id => 1]);
-            $sth->bindValue(':user_id', $user->getId());
+            $sth->bindValue(':user_id', $user->getId(), PDO::PARAM_INT);
             $sth->bindValue(':json_data', $json_data);
 
-            $status = $sth->execute();
+            if ($result = $sth->execute()) {
+                return $json_data;
+            } else {
+                return false;
+            }
         } catch (PDOException $e) {
             throw new TelegramException($e->getMessage());
         }
-
-        return $status;
     }
+
+    /**
+     * @param User $user
+     * @return array|bool
+     * @throws TelegramException
+     */
+    public static function getCart(User $user)
+    {
+        if (!self::isDbConnected()) {
+            return false;
+        }
+
+        try {
+            $sql = '
+                SELECT *
+                FROM `' . TB_CART . '`
+                WHERE `user_id` = :user_id
+            ';
+
+            $sth = self::$pdo->prepare($sql);
+
+            $sth->bindValue(':user_id', $user->getId(), PDO::PARAM_INT);
+
+            $sth->execute();
+
+            if ($cart = $sth->fetch(PDO::FETCH_ASSOC)) {
+                $result = json_decode($cart['json_data'], true);
+            } else {
+                $result = false;
+            }
+
+            return $result;
+        } catch (PDOException $e) {
+            throw new TelegramException($e->getMessage());
+        }
+    }
+
+    /**
+     * @param User $user
+     * @return array|bool
+     * @throws TelegramException
+     */
+    public static function clearCart(User $user)
+    {
+        if (!self::isDbConnected()) {
+            return false;
+        }
+
+        try {
+            $sql = '
+                SELECT *
+                FROM `' . TB_CART . '`
+                WHERE `user_id` = :user_id
+            ';
+
+            $sth = self::$pdo->prepare($sql);
+
+            $sth->bindValue(':user_id', $user->getId(), PDO::PARAM_INT);
+
+            $sth->execute();
+
+            if ($sth->rowCount() > 0) {
+                $sql = '
+                DELETE
+                FROM `' . TB_CART . '`
+                WHERE `user_id` = :user_id
+            ';
+
+                $sth = self::$pdo->prepare($sql);
+
+                $sth->bindValue(':user_id', $user->getId(), PDO::PARAM_INT);
+
+                $sth->execute();
+
+                $result = (bool) $sth->rowCount();
+
+            } else {
+                $result = false;
+            }
+
+            return $result;
+        } catch (PDOException $e) {
+            throw new TelegramException($e->getMessage());
+        }
+    }
+
 }
