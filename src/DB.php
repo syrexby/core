@@ -1724,5 +1724,39 @@ class DB
             throw new TelegramException($e->getMessage());
         }
     }
+    /**
+     * @param string $user_id
+     * @return array|bool
+     */
+    public static function getUserByID(string $user_id)
+    {
+        if (!self::isDbConnected()) {
+            return false;
+        }
+
+        try {
+            $sql = '
+                SELECT *
+                FROM `' . TB_USER . '`
+                WHERE `id` = :id
+            ';
+
+            $sth = self::$pdo->prepare($sql);
+
+            $sth->bindValue(':id', $user_id, PDO::PARAM_INT);
+
+            $sth->execute();
+
+            if ($user = $sth->fetch(PDO::FETCH_ASSOC)) {
+                $result = $user;
+            } else {
+                $result = false;
+            }
+
+            return $result;
+        } catch (PDOException $e) {
+            throw new TelegramException($e->getMessage());
+        }
+    }
 
 }
